@@ -11,16 +11,20 @@ app = Flask(__name__)
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_change_this")
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# -----------------------------
+# 🗄 DATABASE CONFIG
+# -----------------------------
 
-if DATABASE_URL:
-    # Render provides postgres:// but SQLAlchemy needs postgresql://
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+database_url = os.environ.get("DATABASE_URL")
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+if database_url:
+    # Render provides postgres:// but SQLAlchemy requires postgresql://
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
-    # Local fallback
+    # Local development fallback
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///jeevika.db"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -179,7 +183,6 @@ def home():
 
         if user_input:
 
-            # Save user message
             db.session.add(Message(
                 session_id=chat_session.id,
                 role="user",
@@ -202,7 +205,7 @@ def home():
 
             reply, updated_memory = get_jeevika_response(user_input, memory)
 
-            # Update health
+            # Update health safely
             health.pcos_score = updated_memory.get("pcos_score", 0)
             health.pain_score = updated_memory.get("pain_score", 0)
             health.iron_score = updated_memory.get("iron_score", 0)
@@ -215,7 +218,6 @@ def home():
 
             db.session.commit()
 
-            # Save bot reply
             db.session.add(Message(
                 session_id=chat_session.id,
                 role="bot",
@@ -270,7 +272,7 @@ def health_check():
     return {"status": "ok"}
 
 # =====================================================
-# RUN
+# RUN (LOCAL ONLY)
 # =====================================================
 
 if __name__ == "__main__":
