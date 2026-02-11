@@ -1,25 +1,30 @@
 # ============================================
-# JEEVIKA PRO – Clinical Intelligent Engine v6
-# Database Safe + Stable Memory + Production Ready
+# JEEVIKA PRO – Clinical Intelligent Engine v7
+# Stable • Smart Emotional Engine • Production Ready
 # ============================================
 
 import requests
 import os
 from datetime import datetime
 
-# Safe TextBlob import
+# ============================================
+# SAFE TEXTBLOB IMPORT
+# ============================================
+
 try:
     from textblob import TextBlob
     TEXTBLOB_AVAILABLE = True
 except:
     TEXTBLOB_AVAILABLE = False
 
+
 HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 HF_API_KEY = os.environ.get("HF_API_KEY")
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"} if HF_API_KEY else {}
 
+
 # ============================================
-# 🧠 SAFE MEMORY INITIALIZER
+# 🧠 MEMORY INITIALIZER
 # ============================================
 
 def initialize_memory(memory):
@@ -49,7 +54,7 @@ def initialize_memory(memory):
 
 
 # ============================================
-# 📊 SENTIMENT ENGINE (SAFE + NORMALIZED)
+# 📊 SENTIMENT ENGINE
 # ============================================
 
 def sentiment_engine(memory, text):
@@ -63,8 +68,6 @@ def sentiment_engine(memory, text):
             polarity = 0
 
     memory["sentiment_history"].append(round(polarity, 3))
-
-    # Keep only last 50 records (prevent DB bloat)
     memory["sentiment_history"] = memory["sentiment_history"][-50:]
 
     return memory
@@ -86,15 +89,16 @@ def crisis_detection(text):
     if any(w in text for w in crisis_words):
         return (
             "I’m really concerned about you 🤍\n\n"
-            "Please seek immediate help.\n"
-            "India: 📞 9152987821 (Kiran Helpline)"
+            "You deserve immediate support.\n"
+            "India: 📞 9152987821 (Kiran Mental Health Helpline)\n"
+            "Please reach out right now."
         )
 
     return None
 
 
 # ============================================
-# 🩺 RED FLAG EMERGENCY
+# 🩺 RED FLAG DETECTION
 # ============================================
 
 def red_flag_detection(text):
@@ -110,15 +114,15 @@ def red_flag_detection(text):
 
     if any(r in text for r in red_flags):
         return (
-            "⚠️ This could require urgent medical attention.\n"
-            "Please seek emergency care immediately."
+            "⚠️ This may require urgent medical care.\n"
+            "Please seek emergency attention immediately."
         )
 
     return None
 
 
 # ============================================
-# 📈 PAIN ENGINE (NO INFLATION)
+# 📈 PAIN ENGINE
 # ============================================
 
 def pain_engine(memory, text):
@@ -140,7 +144,7 @@ def pain_engine(memory, text):
 
 
 # ============================================
-# 📊 PCOS + TIMELINE (WITH TIMESTAMP)
+# 📊 PCOS ENGINE
 # ============================================
 
 def update_pcos(memory, text):
@@ -167,7 +171,6 @@ def update_pcos(memory, text):
                 "timestamp": datetime.utcnow().isoformat()
             })
 
-    # Keep last 50 timeline events
     memory["symptom_timeline"] = memory["symptom_timeline"][-50:]
 
     return memory
@@ -182,7 +185,7 @@ def evaluate_pcos(score):
 
 
 # ============================================
-# 🧬 IRON ENGINE (NO DOUBLE COUNTING)
+# 🧬 IRON ENGINE
 # ============================================
 
 def iron_engine(memory, text):
@@ -209,7 +212,7 @@ def iron_engine(memory, text):
 
 
 # ============================================
-# 🧬 HORMONE PERCENT ENGINE (BALANCED)
+# 🧬 HORMONE PROBABILITY
 # ============================================
 
 def hormone_probability(memory):
@@ -238,7 +241,7 @@ def hormone_probability(memory):
 
 
 # ============================================
-# 🏥 CLINICAL RISK ENGINE
+# 🏥 CLINICAL RISK
 # ============================================
 
 def clinical_risk(memory):
@@ -260,7 +263,7 @@ def clinical_risk(memory):
 
 
 # ============================================
-# 🧠 CBT DEEPENING (CONTROLLED)
+# 🧠 THERAPIST DEEPENING (UPGRADED)
 # ============================================
 
 def therapist_deepening(memory, text):
@@ -270,9 +273,17 @@ def therapist_deepening(memory, text):
     if memory["emotional_depth_level"] < 10:
         memory["emotional_depth_level"] += 1
 
-    if "alone" in text:
+    if "stress" in text or "stressed" in text:
+        memory["last_topic"] = "stress"
+        return "Stress can feel overwhelming 🤍 What’s causing the most pressure right now?"
+
+    if "anxiety" in text or "anxious" in text:
+        memory["last_topic"] = "anxiety"
+        return "Anxiety can make everything feel urgent 🤍 What thoughts are racing?"
+
+    if "alone" in text or "lonely" in text:
         memory["last_topic"] = "lonely"
-        return "Feeling alone can feel heavy 🤍 What feels most isolating?"
+        return "Feeling alone can feel heavy 🤍 What feels most isolating right now?"
 
     if "sad" in text:
         memory["last_topic"] = "sad"
@@ -288,17 +299,20 @@ def therapist_deepening(memory, text):
 
 
 # ============================================
-# 🤖 HF FALLBACK
+# 🤖 HF AI FALLBACK
 # ============================================
 
 def hf_reply(user_input):
 
     if not HF_API_KEY:
-        return "Tell me more so I can understand better 🤍"
+        return (
+            "I'm here with you 🤍\n\n"
+            "Can you tell me a little more about what you're experiencing?"
+        )
 
     prompt = (
-        "You are JEEVIKA, a calm therapist-like women's health AI.\n"
-        "Be empathetic, short, supportive.\n\n"
+        "You are JEEVIKA, a calm, empathetic women's health AI.\n"
+        "Be supportive, short, and human.\n\n"
         f"User: {user_input}"
     )
 
@@ -322,7 +336,7 @@ def hf_reply(user_input):
     except:
         pass
 
-    return "Tell me more 🤍"
+    return "Tell me more about that 🤍"
 
 
 # ============================================
