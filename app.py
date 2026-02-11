@@ -18,13 +18,10 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_change_this")
 database_url = os.environ.get("DATABASE_URL")
 
 if database_url:
-    # Render provides postgres:// but SQLAlchemy requires postgresql://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
-    # Local development fallback
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///jeevika.db"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -102,7 +99,6 @@ def login():
             session.clear()
             session["user_id"] = user.id
 
-            # Create new chat session
             chat_session = ChatSession(user_id=user.id)
             db.session.add(chat_session)
             db.session.commit()
@@ -123,13 +119,12 @@ def logout():
     return redirect(url_for("login"))
 
 # =====================================================
-# 🏠 MAIN CHAT ROUTE
+# 🏠 MAIN CHAT ROUTE (FIXED REFRESH ISSUE)
 # =====================================================
 
 @app.route("/", methods=["GET", "POST"])
 def home():
 
-    # Must be logged in
     if "user_id" not in session:
         return redirect(url_for("login"))
 
@@ -142,6 +137,7 @@ def home():
     # ----------------------------
     # 🔒 SAFE CHAT SESSION
     # ----------------------------
+
     chat_session = None
 
     if "chat_session_id" in session:
@@ -156,6 +152,7 @@ def home():
     # ----------------------------
     # 🔒 SAFE HEALTH RECORD
     # ----------------------------
+
     health = HealthData.query.filter_by(user_id=user.id).first()
 
     if not health:
@@ -174,20 +171,23 @@ def home():
         db.session.add(health)
         db.session.commit()
 
-    # ----------------------------
-    # 🧠 HANDLE MESSAGE
-    # ----------------------------
+    # =====================================================
+    # 🧠 HANDLE POST (PRG PATTERN FIX)
+    # =====================================================
+
     if request.method == "POST":
 
         user_input = request.form.get("message", "").strip()
 
         if user_input:
 
+            # Save user message
             db.session.add(Message(
                 session_id=chat_session.id,
                 role="user",
                 text=user_input
             ))
+            db.session.commit()
 
             memory = {
                 "symptoms": health.symptoms or [],
@@ -218,20 +218,27 @@ def home():
 
             db.session.commit()
 
+            # Save bot reply
             db.session.add(Message(
                 session_id=chat_session.id,
                 role="bot",
                 text=reply
             ))
-
             db.session.commit()
 
-    # ----------------------------
-    # 📩 FETCH MESSAGES
-    # ----------------------------
-    db_messages = Message.query.filter_by(session_id=chat_session.id).all()
+        # 🔥 CRITICAL FIX: REDIRECT AFTER POST
+        return redirect(url_for("home"))
+
+    # =====================================================
+    # 📩 FETCH MESSAGES (GET ONLY)
+    # =====================================================
+
+    db_messages = Message.query.filter_by(
+        session_id=chat_session.id
+    ).order_by(Message.id.asc()).all()
 
     messages = []
+
     for m in db_messages:
         emotion = detect_simple_emotion(m.text)
         messages.append({
