@@ -1,6 +1,6 @@
 # ============================================
-# JEEVIKA PRO – Clinical Intelligent Engine v7
-# Stable • Smart Emotional Engine • Production Ready
+# JEEVIKA PRO – Clinical Intelligent Engine v8
+# Emotion First • Medically Responsible • Production Safe
 # ============================================
 
 import requests
@@ -21,7 +21,6 @@ except:
 HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 HF_API_KEY = os.environ.get("HF_API_KEY")
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"} if HF_API_KEY else {}
-
 
 # ============================================
 # 🧠 MEMORY INITIALIZER
@@ -90,7 +89,7 @@ def crisis_detection(text):
         return (
             "I’m really concerned about you 🤍\n\n"
             "You deserve immediate support.\n"
-            "India: 📞 9152987821 (Kiran Mental Health Helpline)\n"
+            "India: 📞 9152987821 (Kiran Mental Health Helpline)\n\n"
             "Please reach out right now."
         )
 
@@ -114,7 +113,7 @@ def red_flag_detection(text):
 
     if any(r in text for r in red_flags):
         return (
-            "⚠️ This may require urgent medical care.\n"
+            "⚠️ This may require urgent medical care.\n\n"
             "Please seek emergency attention immediately."
         )
 
@@ -176,14 +175,6 @@ def update_pcos(memory, text):
     return memory
 
 
-def evaluate_pcos(score):
-    if score >= 5:
-        return "HIGH"
-    elif score >= 3:
-        return "MODERATE"
-    return "LOW"
-
-
 # ============================================
 # 🧬 IRON ENGINE
 # ============================================
@@ -204,15 +195,15 @@ def iron_engine(memory, text):
 
     if memory["iron_score"] >= 3:
         return (
-            "Your symptoms may suggest possible iron deficiency 🤍\n"
-            "Consider checking hemoglobin and ferritin levels."
+            "Some of your symptoms *could* be linked to low iron levels 🤍\n\n"
+            "You may consider checking hemoglobin and ferritin levels with a doctor."
         )
 
     return None
 
 
 # ============================================
-# 🧬 HORMONE PROBABILITY
+# 🧬 HORMONE PROBABILITY (SOFT)
 # ============================================
 
 def hormone_probability(memory):
@@ -241,7 +232,7 @@ def hormone_probability(memory):
 
 
 # ============================================
-# 🏥 CLINICAL RISK
+# 🏥 CLINICAL RISK (INTERNAL ONLY)
 # ============================================
 
 def clinical_risk(memory):
@@ -263,7 +254,7 @@ def clinical_risk(memory):
 
 
 # ============================================
-# 🧠 THERAPIST DEEPENING (UPGRADED)
+# 🧠 THERAPIST ENGINE (EMOTION FIRST)
 # ============================================
 
 def therapist_deepening(memory, text):
@@ -273,17 +264,17 @@ def therapist_deepening(memory, text):
     if memory["emotional_depth_level"] < 10:
         memory["emotional_depth_level"] += 1
 
-    if "stress" in text or "stressed" in text:
+    if "stress" in text:
         memory["last_topic"] = "stress"
         return "Stress can feel overwhelming 🤍 What’s causing the most pressure right now?"
 
-    if "anxiety" in text or "anxious" in text:
+    if "anxiety" in text:
         memory["last_topic"] = "anxiety"
         return "Anxiety can make everything feel urgent 🤍 What thoughts are racing?"
 
     if "alone" in text or "lonely" in text:
         memory["last_topic"] = "lonely"
-        return "Feeling alone can feel heavy 🤍 What feels most isolating right now?"
+        return "Feeling alone can feel heavy 🤍 What feels most isolating?"
 
     if "sad" in text:
         memory["last_topic"] = "sad"
@@ -291,28 +282,25 @@ def therapist_deepening(memory, text):
 
     if memory["emotional_depth_level"] >= 4 and memory["last_topic"]:
         return (
-            "Let’s gently question that belief 🤍\n"
-            "What evidence supports it — and what challenges it?"
+            "Let’s gently reflect on that 🤍\n"
+            "What evidence supports this thought — and what challenges it?"
         )
 
     return None
 
 
 # ============================================
-# 🤖 HF AI FALLBACK
+# 🤖 HF FALLBACK
 # ============================================
 
 def hf_reply(user_input):
 
     if not HF_API_KEY:
-        return (
-            "I'm here with you 🤍\n\n"
-            "Can you tell me a little more about what you're experiencing?"
-        )
+        return "I’m here with you 🤍 Can you tell me more about what you're experiencing?"
 
     prompt = (
         "You are JEEVIKA, a calm, empathetic women's health AI.\n"
-        "Be supportive, short, and human.\n\n"
+        "Be supportive, short, human.\n\n"
         f"User: {user_input}"
     )
 
@@ -340,13 +328,12 @@ def hf_reply(user_input):
 
 
 # ============================================
-# 🌿 MAIN ROUTER
+# 🌿 MAIN ROUTER (BALANCED + SAFE)
 # ============================================
 
 def get_jeevika_response(user_input, memory):
 
     memory = initialize_memory(memory)
-
     memory = sentiment_engine(memory, user_input)
 
     crisis = crisis_detection(user_input)
@@ -359,7 +346,10 @@ def get_jeevika_response(user_input, memory):
 
     memory = pain_engine(memory, user_input)
     if memory["pain_score"] >= 8:
-        return "That pain sounds severe 🤍 Please seek urgent care.", memory
+        return (
+            "That pain sounds quite intense 🤍\n\n"
+            "It would be safest to consult a doctor soon."
+        ), memory
 
     memory = update_pcos(memory, user_input)
 
@@ -374,13 +364,19 @@ def get_jeevika_response(user_input, memory):
     if emotional:
         return emotional, memory
 
-    if memory["pcos_score"] >= 3:
-        return (
-            f"PCOS Risk: {evaluate_pcos(memory['pcos_score'])}\n\n"
-            f"Estrogen: {memory['estrogen_percent']}%\n"
-            f"Progesterone: {memory['progesterone_percent']}%\n\n"
-            f"Clinical Risk: {memory['clinical_risk_level']}\n\n"
-            "Would you like a structured hormone-support plan?"
-        ), memory
+    # Only show hormone insight if clearly health-related
+    health_keywords = [
+        "period", "pcos", "hormone",
+        "cycle", "irregular", "acne",
+        "hair fall", "weight gain"
+    ]
+
+    if any(word in user_input.lower() for word in health_keywords):
+        if memory["pcos_score"] >= 3:
+            return (
+                "There may be signs of hormonal imbalance based on what you've shared 🤍\n\n"
+                "This isn’t a diagnosis — only proper medical tests can confirm.\n\n"
+                "Would you like gentle lifestyle guidance to support hormone balance?"
+            ), memory
 
     return hf_reply(user_input), memory
