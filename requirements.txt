@@ -1,3 +1,6 @@
 flask
+flask_sqlalchemy
+flask_bcrypt
 requests
+textblob
 gunicorn

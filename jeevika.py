@@ -1,35 +1,77 @@
 # ============================================
-# JEEVIKA – Intelligent Women Health System
-# Context Memory + PCOS Scoring + Hormone Engine
+# JEEVIKA PRO – Clinical Intelligent Engine v6
+# Database Safe + Stable Memory + Production Ready
 # ============================================
 
 import requests
 import os
+from datetime import datetime
 
-# ============================================
-# 🔐 Hugging Face Configuration
-# ============================================
+# Safe TextBlob import
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except:
+    TEXTBLOB_AVAILABLE = False
 
 HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 HF_API_KEY = os.environ.get("HF_API_KEY")
-
-HEADERS = {}
-if HF_API_KEY:
-    HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
+HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"} if HF_API_KEY else {}
 
 # ============================================
-# 🧠 SIMPLE SESSION CONTEXT MEMORY
-# (Works safely with Flask session later)
+# 🧠 SAFE MEMORY INITIALIZER
 # ============================================
 
-user_context = {
-    "symptoms": set(),
-    "emotional_state": None,
-    "pcos_score": 0
-}
+def initialize_memory(memory):
+
+    if not memory:
+        memory = {}
+
+    defaults = {
+        "symptoms": [],
+        "symptom_timeline": [],
+        "pcos_score": 0,
+        "pain_score": 0,
+        "iron_score": 0,
+        "estrogen_percent": 0.0,
+        "progesterone_percent": 0.0,
+        "emotional_depth_level": 0,
+        "last_topic": None,
+        "sentiment_history": [],
+        "clinical_risk_level": "LOW"
+    }
+
+    for key, value in defaults.items():
+        if key not in memory or memory[key] is None:
+            memory[key] = [] if isinstance(value, list) else value
+
+    return memory
+
 
 # ============================================
-# 🚨 CRISIS DETECTION (TOP PRIORITY)
+# 📊 SENTIMENT ENGINE (SAFE + NORMALIZED)
+# ============================================
+
+def sentiment_engine(memory, text):
+
+    polarity = 0
+
+    if TEXTBLOB_AVAILABLE:
+        try:
+            polarity = TextBlob(text).sentiment.polarity
+        except:
+            polarity = 0
+
+    memory["sentiment_history"].append(round(polarity, 3))
+
+    # Keep only last 50 records (prevent DB bloat)
+    memory["sentiment_history"] = memory["sentiment_history"][-50:]
+
+    return memory
+
+
+# ============================================
+# 🚨 CRISIS DETECTION
 # ============================================
 
 def crisis_detection(text):
@@ -44,186 +86,225 @@ def crisis_detection(text):
     if any(w in text for w in crisis_words):
         return (
             "I’m really concerned about you 🤍\n\n"
-            "Please seek immediate support.\n"
-            "India: 📞 9152987821 (Kiran Mental Health Helpline)\n"
-            "You matter more than you know."
+            "Please seek immediate help.\n"
+            "India: 📞 9152987821 (Kiran Helpline)"
         )
 
     return None
 
 
 # ============================================
-# 🔥 GREETING HANDLER
+# 🩺 RED FLAG EMERGENCY
 # ============================================
 
-def greeting_handler(text):
+def red_flag_detection(text):
     text = text.lower()
 
-    if any(w in text for w in ["hi", "hello", "hey", "hii", "heyy"]):
-        return "Hi 🤍 I’m here with you. What’s been on your mind lately?"
+    red_flags = [
+        "sharp right lower pain",
+        "severe one sided pelvic pain",
+        "sudden severe abdominal pain",
+        "fainting with pain",
+        "vomiting with severe pain"
+    ]
 
-    if len(text.strip()) <= 3:
-        return "I’m here 🤍 Tell me what’s going on."
+    if any(r in text for r in red_flags):
+        return (
+            "⚠️ This could require urgent medical attention.\n"
+            "Please seek emergency care immediately."
+        )
 
     return None
 
 
 # ============================================
-# 📊 PCOS SYMPTOM SCORING SYSTEM
+# 📈 PAIN ENGINE (NO INFLATION)
 # ============================================
 
-def update_pcos_score(text):
+def pain_engine(memory, text):
     text = text.lower()
-    score = 0
+
+    levels = {
+        "unbearable": 9,
+        "very severe": 8,
+        "severe": 7,
+        "moderate": 5,
+        "mild": 3
+    }
+
+    for word, score in levels.items():
+        if word in text:
+            memory["pain_score"] = max(memory["pain_score"], score)
+
+    return memory
+
+
+# ============================================
+# 📊 PCOS + TIMELINE (WITH TIMESTAMP)
+# ============================================
+
+def update_pcos(memory, text):
+    text = text.lower()
 
     symptom_map = {
-        "irregular": 2,
+        "irregular periods": 2,
         "missed period": 2,
         "hair fall": 1,
-        "hair loss": 1,
+        "acne": 1,
         "weight gain": 1,
         "belly fat": 1,
-        "acne": 1,
         "mood swings": 1
     }
 
     for symptom, value in symptom_map.items():
-        if symptom in text:
-            user_context["symptoms"].add(symptom)
-            score += value
+        if symptom in text and symptom not in memory["symptoms"]:
 
-    user_context["pcos_score"] += score
-    return user_context["pcos_score"]
+            memory["symptoms"].append(symptom)
+            memory["pcos_score"] += value
+
+            memory["symptom_timeline"].append({
+                "symptom": symptom,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
+    # Keep last 50 timeline events
+    memory["symptom_timeline"] = memory["symptom_timeline"][-50:]
+
+    return memory
 
 
-def evaluate_pcos_risk(score):
-    if score >= 4:
+def evaluate_pcos(score):
+    if score >= 5:
         return "HIGH"
-    elif score >= 2:
+    elif score >= 3:
         return "MODERATE"
+    return "LOW"
+
+
+# ============================================
+# 🧬 IRON ENGINE (NO DOUBLE COUNTING)
+# ============================================
+
+def iron_engine(memory, text):
+    text = text.lower()
+
+    iron_symptoms = [
+        "fatigue",
+        "tired all the time",
+        "pale skin",
+        "dizziness"
+    ]
+
+    for s in iron_symptoms:
+        if s in text:
+            memory["iron_score"] = min(memory["iron_score"] + 1, 5)
+
+    if memory["iron_score"] >= 3:
+        return (
+            "Your symptoms may suggest possible iron deficiency 🤍\n"
+            "Consider checking hemoglobin and ferritin levels."
+        )
+
+    return None
+
+
+# ============================================
+# 🧬 HORMONE PERCENT ENGINE (BALANCED)
+# ============================================
+
+def hormone_probability(memory):
+
+    estrogen = 0
+    progesterone = 0
+    s = memory["symptoms"]
+
+    if "weight gain" in s: estrogen += 2
+    if "belly fat" in s: estrogen += 2
+    if "acne" in s: estrogen += 1
+
+    if "irregular periods" in s: progesterone += 2
+    if "mood swings" in s: progesterone += 1
+
+    total = estrogen + progesterone
+
+    if total == 0:
+        memory["estrogen_percent"] = 0.0
+        memory["progesterone_percent"] = 0.0
     else:
-        return "LOW"
+        memory["estrogen_percent"] = round((estrogen / total) * 100, 1)
+        memory["progesterone_percent"] = round((progesterone / total) * 100, 1)
+
+    return memory
 
 
 # ============================================
-# 🧬 HORMONE PATTERN ENGINE
+# 🏥 CLINICAL RISK ENGINE
 # ============================================
 
-def hormone_pattern_analysis():
-    symptoms = user_context["symptoms"]
+def clinical_risk(memory):
 
-    if "weight gain" in symptoms and "irregular" in symptoms:
-        return "This may reflect an insulin resistance pattern 🤍"
+    score = (
+        memory["pcos_score"] * 2 +
+        memory["pain_score"] +
+        memory["iron_score"]
+    )
 
-    if "mood swings" in symptoms and "irregular" in symptoms:
-        return "This may reflect progesterone imbalance 🤍"
+    if score >= 15:
+        memory["clinical_risk_level"] = "HIGH"
+    elif score >= 8:
+        memory["clinical_risk_level"] = "MODERATE"
+    else:
+        memory["clinical_risk_level"] = "LOW"
 
-    if "hair fall" in symptoms and "acne" in symptoms:
-        return "This may reflect androgen excess pattern 🤍"
-
-    return None
+    return memory
 
 
 # ============================================
-# 🌙 CYCLE PHASE INTELLIGENCE
+# 🧠 CBT DEEPENING (CONTROLLED)
 # ============================================
 
-def cycle_phase_guidance(text):
+def therapist_deepening(memory, text):
+
     text = text.lower()
 
-    if "cycle day" in text:
-        digits = ''.join(filter(str.isdigit, text))
-        if digits:
-            day = int(digits)
+    if memory["emotional_depth_level"] < 10:
+        memory["emotional_depth_level"] += 1
 
-            if 1 <= day <= 5:
-                return "🌊 Menstrual Phase — Prioritize rest, iron-rich foods, and warmth 🤍"
+    if "alone" in text:
+        memory["last_topic"] = "lonely"
+        return "Feeling alone can feel heavy 🤍 What feels most isolating?"
 
-            elif 6 <= day <= 13:
-                return "🌱 Follicular Phase — Energy may rise. Great time for new plans 🌸"
+    if "sad" in text:
+        memory["last_topic"] = "sad"
+        return "What thought keeps replaying when you feel this sadness?"
 
-            elif 14 <= day <= 16:
-                return "🌼 Ovulation Phase — Communication and confidence may peak 🤍"
-
-            elif 17 <= day <= 28:
-                return "🍂 Luteal Phase — Reduce caffeine, add magnesium, protect energy 🌿"
-
-    return None
-
-
-# ============================================
-# 💬 THERAPIST-STYLE FLOW
-# ============================================
-
-def therapist_flow(text):
-    text = text.lower()
-
-    if "alone" in text or "lonely" in text:
-        user_context["emotional_state"] = "lonely"
+    if memory["emotional_depth_level"] >= 4 and memory["last_topic"]:
         return (
-            "Feeling alone can feel deeply heavy 🤍\n"
-            "Is it emotional loneliness or lack of support around you?"
-        )
-
-    if "sad" in text or "depressed" in text:
-        user_context["emotional_state"] = "sad"
-        return (
-            "I hear that sadness 🤍\n"
-            "What has been weighing on you the most lately?"
-        )
-
-    if "anxious" in text or "stressed" in text:
-        user_context["emotional_state"] = "anxious"
-        return (
-            "It sounds like your nervous system is overloaded 🤍\n"
-            "What feels most out of control right now?"
-        )
-
-    if "hate my body" in text or "feel ugly" in text:
-        return (
-            "Body image struggles can hurt deeply 🤍\n"
-            "When did you start feeling this way about yourself?"
+            "Let’s gently question that belief 🤍\n"
+            "What evidence supports it — and what challenges it?"
         )
 
     return None
 
 
 # ============================================
-# 🥗 SMART DIET ROUTER
-# ============================================
-
-def diet_mode(text):
-    if "diet" in text.lower():
-        return (
-            "Before suggesting anything 🤍\n"
-            "What is your main goal?\n\n"
-            "• PCOS management\n"
-            "• Weight loss\n"
-            "• Energy improvement\n"
-            "• Hormone balance\n\n"
-            "Tell me your goal."
-        )
-    return None
-
-
-# ============================================
-# 🤖 HUGGING FACE FALLBACK
+# 🤖 HF FALLBACK
 # ============================================
 
 def hf_reply(user_input):
 
     if not HF_API_KEY:
-        return (
-            "I want to understand better 🤍\n"
-            "Can you describe your symptoms in a bit more detail?"
-        )
+        return "Tell me more so I can understand better 🤍"
+
+    prompt = (
+        "You are JEEVIKA, a calm therapist-like women's health AI.\n"
+        "Be empathetic, short, supportive.\n\n"
+        f"User: {user_input}"
+    )
 
     payload = {
-        "inputs": f"Respond with empathy and women’s health awareness: {user_input}",
-        "parameters": {
-            "max_new_tokens": 120,
-            "temperature": 0.6
-        }
+        "inputs": prompt,
+        "parameters": {"max_new_tokens": 120, "temperature": 0.6}
     }
 
     try:
@@ -233,65 +314,59 @@ def hf_reply(user_input):
             json=payload,
             timeout=30
         )
-
         result = response.json()
 
         if isinstance(result, list) and "generated_text" in result[0]:
             return result[0]["generated_text"].strip()
 
-    except Exception:
+    except:
         pass
 
-    return "Tell me a little more 🤍"
+    return "Tell me more 🤍"
 
 
 # ============================================
 # 🌿 MAIN ROUTER
 # ============================================
 
-def get_jeevika_response(user_input):
+def get_jeevika_response(user_input, memory):
 
-    # 1️⃣ Crisis first
+    memory = initialize_memory(memory)
+
+    memory = sentiment_engine(memory, user_input)
+
     crisis = crisis_detection(user_input)
     if crisis:
-        return crisis
+        return crisis, memory
 
-    # 2️⃣ Greeting
-    greet = greeting_handler(user_input)
-    if greet:
-        return greet
+    emergency = red_flag_detection(user_input)
+    if emergency:
+        return emergency, memory
 
-    # 3️⃣ Update PCOS score
-    score = update_pcos_score(user_input)
-    if score > 0:
-        risk = evaluate_pcos_risk(score)
-        hormone = hormone_pattern_analysis()
+    memory = pain_engine(memory, user_input)
+    if memory["pain_score"] >= 8:
+        return "That pain sounds severe 🤍 Please seek urgent care.", memory
 
-        response = (
-            f"Based on what you're describing 🤍\n"
-            f"PCOS Risk Level: {risk}\n\n"
-        )
+    memory = update_pcos(memory, user_input)
 
-        if hormone:
-            response += hormone + "\n\n"
+    iron = iron_engine(memory, user_input)
+    if iron:
+        return iron, memory
 
-        response += "Would you like a structured plan to improve this?"
-        return response
+    memory = hormone_probability(memory)
+    memory = clinical_risk(memory)
 
-    # 4️⃣ Cycle phase
-    cycle = cycle_phase_guidance(user_input)
-    if cycle:
-        return cycle
-
-    # 5️⃣ Therapist mode
-    emotional = therapist_flow(user_input)
+    emotional = therapist_deepening(memory, user_input)
     if emotional:
-        return emotional
+        return emotional, memory
 
-    # 6️⃣ Diet
-    diet = diet_mode(user_input)
-    if diet:
-        return diet
+    if memory["pcos_score"] >= 3:
+        return (
+            f"PCOS Risk: {evaluate_pcos(memory['pcos_score'])}\n\n"
+            f"Estrogen: {memory['estrogen_percent']}%\n"
+            f"Progesterone: {memory['progesterone_percent']}%\n\n"
+            f"Clinical Risk: {memory['clinical_risk_level']}\n\n"
+            "Would you like a structured hormone-support plan?"
+        ), memory
 
-    # 7️⃣ HF fallback
-    return hf_reply(user_input)
+    return hf_reply(user_input), memory
