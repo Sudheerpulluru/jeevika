@@ -5,37 +5,23 @@ import os
 
 app = Flask(__name__)
 
-# ======================================
-# 🔐 PRODUCTION CONFIGURATION
-# ======================================
+# =====================================================
+# 🔐 PRODUCTION CONFIGURATION (Render + Local Safe)
+# =====================================================
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_change_this")
-
-# -----------------------------
-# 🗄 DATABASE CONFIG
-# -----------------------------
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
-    # Render gives postgres:// — SQLAlchemy needs postgresql://
+    # Render provides postgres:// but SQLAlchemy needs postgresql://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 else:
-    # Local development fallback
-    database_url = os.environ.get("DATABASE_URL")
-
-if database_url:
-    # Render gives postgres:// but SQLAlchemy needs postgresql://
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-else:
+    # Local fallback
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///jeevika.db"
-
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -45,9 +31,9 @@ bcrypt.init_app(app)
 with app.app_context():
     db.create_all()
 
-# ======================================
+# =====================================================
 # 🎭 EMOJI MAP
-# ======================================
+# =====================================================
 
 EMOJI_MAP = {
     "sad": "😔",
@@ -69,9 +55,9 @@ def detect_simple_emotion(text):
             return key
     return "neutral"
 
-# ======================================
+# =====================================================
 # 🔐 AUTH ROUTES
-# ======================================
+# =====================================================
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -112,7 +98,7 @@ def login():
             session.clear()
             session["user_id"] = user.id
 
-            # Always create new chat session
+            # Create new chat session
             chat_session = ChatSession(user_id=user.id)
             db.session.add(chat_session)
             db.session.commit()
@@ -132,9 +118,9 @@ def logout():
     flash("Logged out successfully.", "success")
     return redirect(url_for("login"))
 
-# ======================================
+# =====================================================
 # 🏠 MAIN CHAT ROUTE
-# ======================================
+# =====================================================
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -149,9 +135,9 @@ def home():
         session.clear()
         return redirect(url_for("login"))
 
-    # -----------------------------
+    # ----------------------------
     # 🔒 SAFE CHAT SESSION
-    # -----------------------------
+    # ----------------------------
     chat_session = None
 
     if "chat_session_id" in session:
@@ -163,9 +149,9 @@ def home():
         db.session.commit()
         session["chat_session_id"] = chat_session.id
 
-    # -----------------------------
+    # ----------------------------
     # 🔒 SAFE HEALTH RECORD
-    # -----------------------------
+    # ----------------------------
     health = HealthData.query.filter_by(user_id=user.id).first()
 
     if not health:
@@ -184,9 +170,9 @@ def home():
         db.session.add(health)
         db.session.commit()
 
-    # -----------------------------
+    # ----------------------------
     # 🧠 HANDLE MESSAGE
-    # -----------------------------
+    # ----------------------------
     if request.method == "POST":
 
         user_input = request.form.get("message", "").strip()
@@ -200,7 +186,6 @@ def home():
                 text=user_input
             ))
 
-            # Map DB → memory
             memory = {
                 "symptoms": health.symptoms or [],
                 "symptom_timeline": health.symptom_timeline or [],
@@ -239,9 +224,9 @@ def home():
 
             db.session.commit()
 
-    # -----------------------------
+    # ----------------------------
     # 📩 FETCH MESSAGES
-    # -----------------------------
+    # ----------------------------
     db_messages = Message.query.filter_by(session_id=chat_session.id).all()
 
     messages = []
@@ -261,9 +246,9 @@ def home():
         timeline=health.symptom_timeline or []
     )
 
-# ======================================
+# =====================================================
 # 🗑 CLEAR CHAT
-# ======================================
+# =====================================================
 
 @app.route("/clear")
 def clear_chat():
@@ -276,17 +261,17 @@ def clear_chat():
     flash("Chat cleared.", "success")
     return redirect(url_for("home"))
 
-# ======================================
+# =====================================================
 # 🏥 HEALTH CHECK
-# ======================================
+# =====================================================
 
 @app.route("/health")
 def health_check():
     return {"status": "ok"}
 
-# ======================================
+# =====================================================
 # RUN
-# ======================================
+# =====================================================
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
