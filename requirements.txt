@@ -5,4 +5,4 @@ gunicorn
 requests
 textblob
 psycopg2-binary
-stripe
+razorpay

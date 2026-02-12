@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, session, redirect, url_for, f
 from jeevika import get_jeevika_response
 from models import db, bcrypt, User, ChatSession, Message, HealthData
 import os
+import razorpay
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
@@ -36,9 +37,12 @@ with app.app_context():
 RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET")
 
-razorpay_client = razorpay.Client(
-    auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
-)
+# Initialize Razorpay safely
+razorpay_client = None
+if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
+    razorpay_client = razorpay.Client(
+        auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+    )
 
 PRO_PRICE = 49900  # ₹499.00 in paise
 
@@ -145,17 +149,24 @@ def create_order():
     if "user_id" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    order = razorpay_client.order.create({
-        "amount": PRO_PRICE,
-        "currency": "INR",
-        "payment_capture": 1
-    })
+    if not razorpay_client:
+        return jsonify({"error": "Payment system not configured"}), 500
 
-    return jsonify({
-        "order_id": order["id"],
-        "razorpay_key": RAZORPAY_KEY_ID,
-        "amount": PRO_PRICE
-    })
+    try:
+        order = razorpay_client.order.create({
+            "amount": PRO_PRICE,
+            "currency": "INR",
+            "payment_capture": 1
+        })
+
+        return jsonify({
+            "order_id": order["id"],
+            "razorpay_key": RAZORPAY_KEY_ID,
+            "amount": PRO_PRICE
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =====================================================
 # ✅ VERIFY PAYMENT
@@ -166,6 +177,9 @@ def verify_payment():
 
     if "user_id" not in session:
         return jsonify({"error": "Unauthorized"}), 401
+
+    if not razorpay_client:
+        return jsonify({"error": "Payment system not configured"}), 500
 
     data = request.json
 
@@ -188,8 +202,8 @@ def verify_payment():
 
         return jsonify({"success": True})
 
-    except:
-        return jsonify({"success": False}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
 
 # =====================================================
 # 💬 DASHBOARD
