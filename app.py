@@ -1,19 +1,16 @@
-from flask import Flask, render_template, request, session, redirect, url_for, flash
+from flask import Flask, render_template, request, session, redirect, url_for, flash, jsonify
 from jeevika import get_jeevika_response
 from models import db, bcrypt, User, ChatSession, Message, HealthData
 import os
+import stripe
 
 app = Flask(__name__)
 
 # =====================================================
-# 🔐 PRODUCTION CONFIGURATION (Render + Local Safe)
+# 🔐 PRODUCTION CONFIGURATION
 # =====================================================
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_change_this")
-
-# -----------------------------
-# 🗄 DATABASE CONFIG
-# -----------------------------
 
 database_url = os.environ.get("DATABASE_URL")
 
@@ -33,6 +30,14 @@ with app.app_context():
     db.create_all()
 
 # =====================================================
+# 💳 STRIPE CONFIG
+# =====================================================
+
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY")
+STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID")
+
+# =====================================================
 # 🎭 EMOJI MAP
 # =====================================================
 
@@ -42,8 +47,8 @@ EMOJI_MAP = {
     "alone": "🥺",
     "heartbroken": "💔",
     "anxious": "😟",
+    "stress": "😣",
     "stressed": "😣",
-    "depressed": "😔",
     "happy": "😊",
     "calm": "😌",
     "neutral": "🤍"
@@ -57,11 +62,22 @@ def detect_simple_emotion(text):
     return "neutral"
 
 # =====================================================
-# 🔐 AUTH ROUTES
+# 🏠 LANDING
+# =====================================================
+
+@app.route("/")
+def landing():
+    if "user_id" in session:
+        return redirect(url_for("dashboard"))
+    return render_template("landing.html")
+
+# =====================================================
+# 🔐 REGISTER
 # =====================================================
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+
     if request.method == "POST":
         name = request.form.get("username")
         email = request.form.get("email")
@@ -72,7 +88,7 @@ def register():
             return render_template("register.html")
 
         if User.query.filter_by(email=email).first():
-            flash("User already exists.", "danger")
+            flash("Account already exists.", "danger")
             return render_template("register.html")
 
         new_user = User(name=name, email=email)
@@ -86,44 +102,102 @@ def register():
 
     return render_template("register.html")
 
+# =====================================================
+# 🔐 LOGIN
+# =====================================================
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+
     if request.method == "POST":
         email = request.form.get("email")
         password = request.form.get("password")
 
         user = User.query.filter_by(email=email).first()
 
-        if user and user.check_password(password):
-            session.clear()
-            session["user_id"] = user.id
+        if not user:
+            flash("No account found with this email.", "danger")
+            return render_template("login.html")
 
-            chat_session = ChatSession(user_id=user.id)
-            db.session.add(chat_session)
-            db.session.commit()
+        if not user.check_password(password):
+            flash("Incorrect password.", "danger")
+            return render_template("login.html")
 
-            session["chat_session_id"] = chat_session.id
+        session.clear()
+        session["user_id"] = user.id
 
-            return redirect(url_for("home"))
+        chat_session = ChatSession(user_id=user.id)
+        db.session.add(chat_session)
+        db.session.commit()
 
-        flash("Invalid email or password.", "danger")
+        session["chat_session_id"] = chat_session.id
+
+        return redirect(url_for("dashboard"))
 
     return render_template("login.html")
 
+# =====================================================
+# 💳 STRIPE CHECKOUT
+# =====================================================
+
+@app.route("/create-checkout-session", methods=["POST"])
+def create_checkout_session():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="subscription",
+            line_items=[{
+                "price": STRIPE_PRICE_ID,
+                "quantity": 1,
+            }],
+            success_url=url_for("payment_success", _external=True),
+            cancel_url=url_for("dashboard", _external=True),
+        )
+
+        return redirect(checkout_session.url)
+
+    except Exception as e:
+        return str(e)
+
+# =====================================================
+# ✅ PAYMENT SUCCESS
+# =====================================================
+
+@app.route("/payment-success")
+def payment_success():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user = db.session.get(User, session["user_id"])
+
+    # Mark user as premium
+    user.verified = True  # using verified as premium flag
+    db.session.commit()
+
+    flash("🎉 You are now a Premium Member!", "success")
+
+    return redirect(url_for("dashboard"))
+
+# =====================================================
+# 🔓 LOGOUT
+# =====================================================
 
 @app.route("/logout")
 def logout():
     session.clear()
-    flash("Logged out successfully.", "success")
-    return redirect(url_for("login"))
+    return redirect(url_for("landing"))
 
 # =====================================================
-# 🏠 MAIN CHAT ROUTE (FIXED REFRESH ISSUE)
+# 💬 DASHBOARD
 # =====================================================
 
-@app.route("/", methods=["GET", "POST"])
-def home():
+@app.route("/dashboard", methods=["GET", "POST"])
+def dashboard():
 
     if "user_id" not in session:
         return redirect(url_for("login"))
@@ -133,10 +207,6 @@ def home():
     if not user:
         session.clear()
         return redirect(url_for("login"))
-
-    # ----------------------------
-    # 🔒 SAFE CHAT SESSION
-    # ----------------------------
 
     chat_session = None
 
@@ -149,39 +219,20 @@ def home():
         db.session.commit()
         session["chat_session_id"] = chat_session.id
 
-    # ----------------------------
-    # 🔒 SAFE HEALTH RECORD
-    # ----------------------------
-
     health = HealthData.query.filter_by(user_id=user.id).first()
 
     if not health:
-        health = HealthData(
-            user_id=user.id,
-            pcos_score=0,
-            pain_score=0,
-            iron_score=0,
-            estrogen_percent=0.0,
-            progesterone_percent=0.0,
-            clinical_risk="LOW",
-            symptoms=[],
-            symptom_timeline=[],
-            sentiment_history=[]
-        )
+        health = HealthData(user_id=user.id)
         db.session.add(health)
         db.session.commit()
 
-    # =====================================================
-    # 🧠 HANDLE POST (PRG PATTERN FIX)
-    # =====================================================
-
+    # MESSAGE HANDLING
     if request.method == "POST":
 
         user_input = request.form.get("message", "").strip()
 
         if user_input:
 
-            # Save user message
             db.session.add(Message(
                 session_id=chat_session.id,
                 role="user",
@@ -198,27 +249,15 @@ def home():
                 "iron_score": health.iron_score,
                 "estrogen_percent": health.estrogen_percent,
                 "progesterone_percent": health.progesterone_percent,
-                "emotional_depth_level": 0,
-                "last_topic": None,
                 "clinical_risk_level": health.clinical_risk
             }
 
             reply, updated_memory = get_jeevika_response(user_input, memory)
 
-            # Update health safely
             health.pcos_score = updated_memory.get("pcos_score", 0)
-            health.pain_score = updated_memory.get("pain_score", 0)
-            health.iron_score = updated_memory.get("iron_score", 0)
-            health.estrogen_percent = updated_memory.get("estrogen_percent", 0.0)
-            health.progesterone_percent = updated_memory.get("progesterone_percent", 0.0)
             health.clinical_risk = updated_memory.get("clinical_risk_level", "LOW")
-            health.symptoms = updated_memory.get("symptoms", [])
-            health.symptom_timeline = updated_memory.get("symptom_timeline", [])
-            health.sentiment_history = updated_memory.get("sentiment_history", [])
-
             db.session.commit()
 
-            # Save bot reply
             db.session.add(Message(
                 session_id=chat_session.id,
                 role="bot",
@@ -226,12 +265,7 @@ def home():
             ))
             db.session.commit()
 
-        # 🔥 CRITICAL FIX: REDIRECT AFTER POST
-        return redirect(url_for("home"))
-
-    # =====================================================
-    # 📩 FETCH MESSAGES (GET ONLY)
-    # =====================================================
+        return redirect(url_for("dashboard"))
 
     db_messages = Message.query.filter_by(
         session_id=chat_session.id
@@ -248,11 +282,11 @@ def home():
         })
 
     return render_template(
-        "index.html",
+        "dashboard.html",
         messages=messages,
         memory=health,
-        sentiment=health.sentiment_history or [],
-        timeline=health.symptom_timeline or []
+        is_premium=user.verified,
+        stripe_public_key=STRIPE_PUBLIC_KEY
     )
 
 # =====================================================
@@ -267,8 +301,7 @@ def clear_chat():
         ).delete()
         db.session.commit()
 
-    flash("Chat cleared.", "success")
-    return redirect(url_for("home"))
+    return redirect(url_for("dashboard"))
 
 # =====================================================
 # 🏥 HEALTH CHECK
@@ -279,7 +312,7 @@ def health_check():
     return {"status": "ok"}
 
 # =====================================================
-# RUN (LOCAL ONLY)
+# RUN
 # =====================================================
 
 if __name__ == "__main__":

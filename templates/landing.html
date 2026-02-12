@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JEEVIKA – Intelligent Women’s Health Companion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --primary: #8e44ad;
+    --primary-dark: #6c2aa5;
+    --accent: #c084fc;
+    --bg: #faf7ff;
+    --dark: #2d1b4e;
+    --soft: #f3e8ff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    background: var(--bg);
+    color: var(--dark);
+}
+
+/* ================= NAVBAR ================= */
+
+.navbar {
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    background: white;
+    border-bottom: 1px solid #eee;
+}
+
+.logo {
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--primary);
+}
+
+.nav-links a {
+    margin-left: 25px;
+    text-decoration: none;
+    font-size: 14px;
+    color: var(--dark);
+    transition: 0.2s ease;
+}
+
+.nav-links a:hover {
+    color: var(--primary);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white !important;
+    padding: 8px 18px;
+    border-radius: 25px;
+}
+
+/* ================= HERO ================= */
+
+.hero {
+    padding: 120px 20px 100px 20px;
+    text-align: center;
+    background: linear-gradient(180deg, #faf7ff 0%, #ffffff 100%);
+}
+
+.hero h1 {
+    font-size: 44px;
+    margin-bottom: 20px;
+    font-weight: 700;
+}
+
+.hero span {
+    color: var(--primary);
+}
+
+.hero p {
+    font-size: 18px;
+    max-width: 700px;
+    margin: auto;
+    color: #666;
+    line-height: 1.7;
+}
+
+.hero-buttons {
+    margin-top: 40px;
+}
+
+.hero-buttons a {
+    text-decoration: none;
+    padding: 14px 30px;
+    border-radius: 30px;
+    font-size: 15px;
+    margin: 8px;
+    display: inline-block;
+    transition: 0.3s ease;
+}
+
+.primary-btn {
+    background: var(--primary);
+    color: white;
+}
+
+.primary-btn:hover {
+    background: var(--primary-dark);
+}
+
+.secondary-btn {
+    border: 1px solid var(--primary);
+    color: var(--primary);
+}
+
+.trust-line {
+    margin-top: 30px;
+    font-size: 13px;
+    color: #777;
+}
+
+/* ================= FEATURES ================= */
+
+.features {
+    padding: 100px 20px;
+    background: white;
+}
+
+.features h2 {
+    text-align: center;
+    margin-bottom: 60px;
+    font-size: 30px;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 40px;
+    max-width: 1100px;
+    margin: auto;
+}
+
+.feature {
+    background: var(--soft);
+    padding: 30px;
+    border-radius: 20px;
+    transition: 0.3s ease;
+}
+
+.feature:hover {
+    transform: translateY(-6px);
+}
+
+.feature h3 {
+    margin-bottom: 15px;
+}
+
+/* ================= PRICING ================= */
+
+.pricing {
+    padding: 100px 20px;
+    text-align: center;
+    background: #faf7ff;
+}
+
+.pricing h2 {
+    margin-bottom: 60px;
+    font-size: 30px;
+}
+
+.pricing-cards {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 40px;
+}
+
+.card {
+    background: white;
+    padding: 45px 35px;
+    border-radius: 25px;
+    width: 300px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.08);
+    transition: 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-8px);
+}
+
+.pro-card {
+    border: 2px solid var(--primary);
+    transform: scale(1.05);
+}
+
+.card h3 {
+    margin-bottom: 15px;
+}
+
+.price {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 20px 0;
+}
+
+.card ul {
+    list-style: none;
+    padding: 0;
+    font-size: 14px;
+    line-height: 2;
+}
+
+.card button {
+    margin-top: 25px;
+    padding: 12px 22px;
+    border-radius: 25px;
+    border: none;
+    background: var(--primary);
+    color: white;
+    cursor: pointer;
+}
+
+/* ================= FOOTER ================= */
+
+.footer {
+    padding: 50px 20px;
+    text-align: center;
+    font-size: 13px;
+    background: #f1ecfa;
+    color: #777;
+}
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 768px) {
+
+    .hero h1 {
+        font-size: 30px;
+    }
+
+    .hero p {
+        font-size: 16px;
+    }
+
+    .navbar {
+        padding: 0 20px;
+    }
+
+    .nav-links a {
+        margin-left: 12px;
+        font-size: 13px;
+    }
+
+    .hero-buttons a {
+        display: block;
+        width: 220px;
+        margin: 12px auto;
+    }
+
+    .pro-card {
+        transform: none;
+    }
+
+    .card {
+        width: 90%;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="navbar">
+    <div class="logo">🌿 JEEVIKA</div>
+    <div class="nav-links">
+        <a href="/login">Login</a>
+        <a href="/register" class="btn-primary">Get Started</a>
+    </div>
+</div>
+
+<section class="hero">
+    <h1>Your Intelligent <span>Women’s Health</span> Companion</h1>
+    <p>
+        Combining emotional intelligence, clinical risk analysis, and privacy-first AI
+        to support your health journey — anytime, anywhere.
+    </p>
+
+    <div class="hero-buttons">
+        <a href="/register" class="primary-btn">Start Free</a>
+        <a href="/login" class="secondary-btn">Login</a>
+    </div>
+
+    <div class="trust-line">
+        🔐 Private • Secure • Built for Modern Women
+    </div>
+</section>
+
+<section class="features">
+    <h2>Why Choose JEEVIKA?</h2>
+
+    <div class="feature-grid">
+        <div class="feature">
+            <h3>🧠 Emotional Intelligence</h3>
+            <p>Therapeutic conversation powered by real-time sentiment tracking.</p>
+        </div>
+
+        <div class="feature">
+            <h3>🩺 Clinical Risk Engine</h3>
+            <p>PCOS scoring, hormone probability, and red-flag detection.</p>
+        </div>
+
+        <div class="feature">
+            <h3>📊 Smart Health Tracking</h3>
+            <p>Track symptoms and emotional trends with intelligent insights.</p>
+        </div>
+
+        <div class="feature">
+            <h3>🔐 Secure & Private</h3>
+            <p>Encrypted sessions with secure database architecture.</p>
+        </div>
+    </div>
+</section>
+
+<section class="pricing">
+    <h2>Choose Your Plan</h2>
+
+    <div class="pricing-cards">
+
+        <div class="card">
+            <h3>Free</h3>
+            <div class="price">₹0</div>
+            <ul>
+                <li>Basic AI Chat</li>
+                <li>Emotion Tracking</li>
+                <li>PCOS Score</li>
+            </ul>
+            <button onclick="location.href='/register'">Start Free</button>
+        </div>
+
+        <div class="card pro-card">
+            <h3>Pro</h3>
+            <div class="price">₹499 / month</div>
+            <ul>
+                <li>Advanced Hormone Insights</li>
+                <li>Download Health Reports</li>
+                <li>Priority AI Engine</li>
+                <li>Future Doctor Connect</li>
+            </ul>
+            <button onclick="location.href='/register'">Upgrade</button>
+        </div>
+
+    </div>
+</section>
+
+<div class="footer">
+    © 2026 JEEVIKA Health Technologies • Built with Care 🌿
+</div>
+
+</body>
+</html>

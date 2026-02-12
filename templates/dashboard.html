@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JEEVIKA – Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root {
+    --primary: #8e44ad;
+    --primary-light: #c084fc;
+    --bg: #faf7ff;
+    --card: #ffffff;
+    --soft: #f5f0ff;
+    --text-dark: #2d1b4e;
+    --muted: #777;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    background: var(--bg);
+    display: flex;
+    height: 100vh;
+}
+
+/* SIDEBAR */
+
+.sidebar {
+    width: 240px;
+    background: white;
+    border-right: 1px solid #eee;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.logo {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--primary);
+    margin-bottom: 40px;
+}
+
+.menu-item {
+    padding: 12px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 8px;
+    font-size: 14px;
+    transition: 0.2s;
+}
+
+.menu-item:hover {
+    background: var(--soft);
+}
+
+.menu-item.active {
+    background: var(--primary);
+    color: white;
+}
+
+/* MAIN */
+
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* TOPBAR */
+
+.topbar {
+    height: 70px;
+    background: white;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0 30px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
+.topbar span {
+    margin-left: 20px;
+    cursor: pointer;
+}
+
+/* CONTENT */
+
+.content {
+    flex: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+/* CARDS */
+
+.chat-card,
+.insights-card,
+.reports-card {
+    background: white;
+    border-radius: 24px;
+    padding: 25px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+}
+
+/* CHAT */
+
+.chat-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 0;
+}
+
+.message {
+    max-width: 70%;
+    padding: 14px 18px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    animation: fadeIn 0.3s ease;
+}
+
+.user {
+    background: var(--primary);
+    color: white;
+    margin-left: auto;
+}
+
+.bot {
+    background: var(--soft);
+    color: var(--text-dark);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Typing */
+
+.typing {
+    display: flex;
+    gap: 5px;
+    padding: 10px 15px;
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    background: #aaa;
+    border-radius: 50%;
+    animation: blink 1.4s infinite both;
+}
+
+.dot:nth-child(2){ animation-delay:0.2s; }
+.dot:nth-child(3){ animation-delay:0.4s; }
+
+@keyframes blink {
+    0% { opacity: 0.2; }
+    20% { opacity: 1; }
+    100% { opacity: 0.2; }
+}
+
+/* INPUT */
+
+.input-area {
+    display: flex;
+    margin-top: 15px;
+}
+
+.input-area input {
+    flex: 1;
+    padding: 14px;
+    border-radius: 25px;
+    border: 1px solid #ddd;
+}
+
+.input-area button {
+    margin-left: 10px;
+    padding: 14px 22px;
+    border-radius: 25px;
+    border: none;
+    background: var(--primary);
+    color: white;
+    cursor: pointer;
+}
+
+/* PREMIUM LOCK */
+
+.locked {
+    opacity: 0.6;
+}
+
+.upgrade-btn {
+    margin-top: 20px;
+    padding: 10px 18px;
+    border-radius: 20px;
+    border: none;
+    background: linear-gradient(90deg, #8e44ad, #c084fc);
+    color: white;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <div class="logo">🌿 JEEVIKA</div>
+
+    <div class="menu-item active" id="chat-menu" onclick="showTab('chat')">💬 Chat</div>
+    <div class="menu-item" id="insights-menu" onclick="showTab('insights')">📊 Insights</div>
+
+    {% if is_premium %}
+        <div class="menu-item" id="reports-menu" onclick="showTab('reports')">📄 Reports</div>
+    {% else %}
+        <div class="menu-item locked" onclick="upgrade()">🔒 Reports (Pro)</div>
+    {% endif %}
+</div>
+
+<div class="main">
+
+    <div class="topbar">
+        {% if is_premium %}
+            <span>🌟 Premium Active</span>
+        {% else %}
+            <span onclick="upgrade()">Upgrade</span>
+        {% endif %}
+        <span onclick="clearChat()">Clear</span>
+        <span onclick="logout()">Logout</span>
+    </div>
+
+    <div class="content">
+
+        <!-- CHAT TAB -->
+        <div id="chat-tab">
+            <div class="chat-card">
+
+                <div class="messages" id="chat">
+                    {% for msg in messages %}
+                        <div class="message {{ 'user' if msg.role == 'user' else 'bot' }}">
+                            {{ msg.text }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div id="typing" style="display:none;" class="typing">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+
+                <form method="POST" class="input-area" onsubmit="showTyping()">
+                    <input type="text" name="message" required>
+                    <button type="submit">Send</button>
+                </form>
+
+            </div>
+        </div>
+
+        <!-- INSIGHTS TAB -->
+        <div id="insights-tab" style="display:none;">
+            <div class="insights-card">
+                <h3>Health Overview</h3>
+                <p>PCOS Score: <strong>{{ memory.pcos_score }}</strong></p>
+                <p>Iron Score: <strong>{{ memory.iron_score }}</strong></p>
+                <p>Risk Level: <strong>{{ memory.clinical_risk }}</strong></p>
+            </div>
+        </div>
+
+        <!-- REPORTS TAB -->
+        {% if is_premium %}
+        <div id="reports-tab" style="display:none;">
+            <div class="reports-card">
+                <h3>Download Health Reports</h3>
+                <p>Generate hormone analytics & emotional trend reports.</p>
+                <button class="upgrade-btn">Generate Report</button>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+function logout(){ window.location.href="/logout"; }
+function clearChat(){ window.location.href="/clear"; }
+
+function showTab(tab){
+    document.getElementById("chat-tab").style.display="none";
+    document.getElementById("insights-tab").style.display="none";
+    let reports = document.getElementById("reports-tab");
+    if(reports) reports.style.display="none";
+
+    document.getElementById(tab+"-tab").style.display="block";
+
+    document.querySelectorAll(".menu-item").forEach(i=>i.classList.remove("active"));
+    document.getElementById(tab+"-menu")?.classList.add("active");
+}
+
+function showTyping(){
+    document.getElementById("typing").style.display="flex";
+}
+
+function upgrade(){
+    fetch("/create-checkout-session", {method:"POST"})
+    .then(res=>res.redirected ? window.location.href=res.url : null);
+}
+
+const chat=document.getElementById("chat");
+chat.scrollTop=chat.scrollHeight;
+</script>
+
+</body>
+</html>
