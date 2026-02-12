@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, session, redirect, url_for, f
 from jeevika import get_jeevika_response
 from models import db, bcrypt, User, ChatSession, Message, HealthData
 import os
-import razorpay
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
