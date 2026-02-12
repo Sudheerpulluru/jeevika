@@ -7,20 +7,43 @@ db = SQLAlchemy()
 bcrypt = Bcrypt()
 
 # ==========================================
-# 👩 USER MODEL
+# 👩 USER MODEL (PRODUCTION READY)
 # ==========================================
 
 class User(db.Model):
     __tablename__ = "user"
 
     id = db.Column(db.Integer, primary_key=True)
+
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(200), nullable=False)
+
     verified = db.Column(db.Boolean, default=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # ------------------------------
+    # 💎 SUBSCRIPTION SYSTEM
+    # ------------------------------
 
+    plan = db.Column(db.String(20), default="FREE")  
+    # FREE / PRO / ENTERPRISE (future)
+
+    subscription_status = db.Column(db.String(30), default="INACTIVE")
+    # ACTIVE / CANCELLED / EXPIRED / INACTIVE
+
+    razorpay_customer_id = db.Column(db.String(120), nullable=True)
+    razorpay_subscription_id = db.Column(db.String(120), nullable=True)
+    razorpay_payment_id = db.Column(db.String(120), nullable=True)
+
+    subscription_start = db.Column(db.DateTime, nullable=True)
+    subscription_end = db.Column(db.DateTime, nullable=True)
+
+    # ------------------------------
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
     sessions = db.relationship(
         "ChatSession",
         backref="user",
@@ -42,9 +65,12 @@ class User(db.Model):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
-    def __repr__(self):
-        return f"<User {self.email}>"
+    # 💎 Plan Checker (IMPORTANT)
+    def is_pro(self):
+        return self.plan == "PRO" and self.subscription_status == "ACTIVE"
 
+    def __repr__(self):
+        return f"<User {self.email} | Plan: {self.plan}>"
 
 # ==========================================
 # 💬 CHAT SESSION MODEL
@@ -54,6 +80,7 @@ class ChatSession(db.Model):
     __tablename__ = "chat_session"
 
     id = db.Column(db.Integer, primary_key=True)
+
     user_id = db.Column(
         db.Integer,
         db.ForeignKey("user.id", ondelete="CASCADE"),
@@ -73,7 +100,6 @@ class ChatSession(db.Model):
     def __repr__(self):
         return f"<ChatSession {self.id}>"
 
-
 # ==========================================
 # 📨 MESSAGE MODEL
 # ==========================================
@@ -90,7 +116,7 @@ class Message(db.Model):
         index=True
     )
 
-    role = db.Column(db.String(10), nullable=False)  # user / bot
+    role = db.Column(db.String(10), nullable=False)
     text = db.Column(db.Text, nullable=False)
 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -98,9 +124,8 @@ class Message(db.Model):
     def __repr__(self):
         return f"<Message {self.role} @ {self.timestamp}>"
 
-
 # ==========================================
-# 🧬 HEALTH DATA MODEL (ENTERPRISE SAFE)
+# 🧬 HEALTH DATA MODEL
 # ==========================================
 
 class HealthData(db.Model):
@@ -121,25 +146,20 @@ class HealthData(db.Model):
     pain_score = db.Column(db.Integer, default=0)
     iron_score = db.Column(db.Integer, default=0)
 
-    # 🧬 Hormone Percentages (Float — correct for charts)
+    # 🧬 Hormone Percentages
     estrogen_percent = db.Column(db.Float, default=0.0)
     progesterone_percent = db.Column(db.Float, default=0.0)
 
     # 🏥 Clinical Risk
     clinical_risk = db.Column(db.String(50), default="LOW")
 
-    # 📈 JSON Data (SAFE DEFAULT FACTORIES)
+    # 📈 JSON Data
     symptoms = db.Column(JSON, default=lambda: [])
     symptom_timeline = db.Column(JSON, default=lambda: [])
     sentiment_history = db.Column(JSON, default=lambda: [])
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    updated_at = db.Column(
-        db.DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
-    )
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f"<HealthData user_id={self.user_id} risk={self.clinical_risk}>"

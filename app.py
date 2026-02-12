@@ -2,12 +2,13 @@ from flask import Flask, render_template, request, session, redirect, url_for, f
 from jeevika import get_jeevika_response
 from models import db, bcrypt, User, ChatSession, Message, HealthData
 import os
-import stripe
+import razorpay
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
 # =====================================================
-# 🔐 PRODUCTION CONFIGURATION
+# 🔐 CONFIG
 # =====================================================
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_secret_change_this")
@@ -30,12 +31,17 @@ with app.app_context():
     db.create_all()
 
 # =====================================================
-# 💳 STRIPE CONFIG
+# 💳 RAZORPAY CONFIG
 # =====================================================
 
-stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
-STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY")
-STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID")
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET")
+
+razorpay_client = razorpay.Client(
+    auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+)
+
+PRO_PRICE = 49900  # ₹499.00 in paise
 
 # =====================================================
 # 🎭 EMOJI MAP
@@ -126,71 +132,65 @@ def login():
         session.clear()
         session["user_id"] = user.id
 
-        chat_session = ChatSession(user_id=user.id)
-        db.session.add(chat_session)
-        db.session.commit()
-
-        session["chat_session_id"] = chat_session.id
-
         return redirect(url_for("dashboard"))
 
     return render_template("login.html")
 
 # =====================================================
-# 💳 STRIPE CHECKOUT
+# 💳 CREATE RAZORPAY ORDER
 # =====================================================
 
-@app.route("/create-checkout-session", methods=["POST"])
-def create_checkout_session():
+@app.route("/create-order", methods=["POST"])
+def create_order():
 
     if "user_id" not in session:
-        return redirect(url_for("login"))
+        return jsonify({"error": "Unauthorized"}), 401
+
+    order = razorpay_client.order.create({
+        "amount": PRO_PRICE,
+        "currency": "INR",
+        "payment_capture": 1
+    })
+
+    return jsonify({
+        "order_id": order["id"],
+        "razorpay_key": RAZORPAY_KEY_ID,
+        "amount": PRO_PRICE
+    })
+
+# =====================================================
+# ✅ VERIFY PAYMENT
+# =====================================================
+
+@app.route("/verify-payment", methods=["POST"])
+def verify_payment():
+
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
 
     try:
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            mode="subscription",
-            line_items=[{
-                "price": STRIPE_PRICE_ID,
-                "quantity": 1,
-            }],
-            success_url=url_for("payment_success", _external=True),
-            cancel_url=url_for("dashboard", _external=True),
-        )
+        razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": data["razorpay_order_id"],
+            "razorpay_payment_id": data["razorpay_payment_id"],
+            "razorpay_signature": data["razorpay_signature"]
+        })
 
-        return redirect(checkout_session.url)
+        user = db.session.get(User, session["user_id"])
 
-    except Exception as e:
-        return str(e)
+        user.plan = "PRO"
+        user.subscription_status = "ACTIVE"
+        user.subscription_start = datetime.utcnow()
+        user.subscription_end = datetime.utcnow() + timedelta(days=30)
+        user.razorpay_payment_id = data["razorpay_payment_id"]
 
-# =====================================================
-# ✅ PAYMENT SUCCESS
-# =====================================================
+        db.session.commit()
 
-@app.route("/payment-success")
-def payment_success():
+        return jsonify({"success": True})
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    user = db.session.get(User, session["user_id"])
-
-    # Mark user as premium
-    user.verified = True  # using verified as premium flag
-    db.session.commit()
-
-    flash("🎉 You are now a Premium Member!", "success")
-
-    return redirect(url_for("dashboard"))
-
-# =====================================================
-# 🔓 LOGOUT
-# =====================================================
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("landing"))
+    except:
+        return jsonify({"success": False}), 400
 
 # =====================================================
 # 💬 DASHBOARD
@@ -204,20 +204,12 @@ def dashboard():
 
     user = db.session.get(User, session["user_id"])
 
-    if not user:
-        session.clear()
-        return redirect(url_for("login"))
-
-    chat_session = None
-
-    if "chat_session_id" in session:
-        chat_session = db.session.get(ChatSession, session["chat_session_id"])
+    chat_session = ChatSession.query.filter_by(user_id=user.id).first()
 
     if not chat_session:
         chat_session = ChatSession(user_id=user.id)
         db.session.add(chat_session)
         db.session.commit()
-        session["chat_session_id"] = chat_session.id
 
     health = HealthData.query.filter_by(user_id=user.id).first()
 
@@ -226,44 +218,35 @@ def dashboard():
         db.session.add(health)
         db.session.commit()
 
-    # MESSAGE HANDLING
     if request.method == "POST":
 
-        user_input = request.form.get("message", "").strip()
+        user_input = request.form.get("message").strip()
 
-        if user_input:
+        db.session.add(Message(
+            session_id=chat_session.id,
+            role="user",
+            text=user_input
+        ))
+        db.session.commit()
 
-            db.session.add(Message(
-                session_id=chat_session.id,
-                role="user",
-                text=user_input
-            ))
-            db.session.commit()
+        memory = {
+            "symptoms": health.symptoms or [],
+            "pcos_score": health.pcos_score,
+            "clinical_risk_level": health.clinical_risk
+        }
 
-            memory = {
-                "symptoms": health.symptoms or [],
-                "symptom_timeline": health.symptom_timeline or [],
-                "sentiment_history": health.sentiment_history or [],
-                "pcos_score": health.pcos_score,
-                "pain_score": health.pain_score,
-                "iron_score": health.iron_score,
-                "estrogen_percent": health.estrogen_percent,
-                "progesterone_percent": health.progesterone_percent,
-                "clinical_risk_level": health.clinical_risk
-            }
+        reply, updated_memory = get_jeevika_response(user_input, memory)
 
-            reply, updated_memory = get_jeevika_response(user_input, memory)
+        health.pcos_score = updated_memory.get("pcos_score", 0)
+        health.clinical_risk = updated_memory.get("clinical_risk_level", "LOW")
+        db.session.commit()
 
-            health.pcos_score = updated_memory.get("pcos_score", 0)
-            health.clinical_risk = updated_memory.get("clinical_risk_level", "LOW")
-            db.session.commit()
-
-            db.session.add(Message(
-                session_id=chat_session.id,
-                role="bot",
-                text=reply
-            ))
-            db.session.commit()
+        db.session.add(Message(
+            session_id=chat_session.id,
+            role="bot",
+            text=reply
+        ))
+        db.session.commit()
 
         return redirect(url_for("dashboard"))
 
@@ -271,49 +254,36 @@ def dashboard():
         session_id=chat_session.id
     ).order_by(Message.id.asc()).all()
 
-    messages = []
-
-    for m in db_messages:
-        emotion = detect_simple_emotion(m.text)
-        messages.append({
-            "role": m.role,
-            "text": m.text,
-            "emotion": EMOJI_MAP.get(emotion, "🤍")
-        })
+    messages = [{
+        "role": m.role,
+        "text": m.text,
+        "emotion": EMOJI_MAP.get(detect_simple_emotion(m.text), "🤍")
+    } for m in db_messages]
 
     return render_template(
         "dashboard.html",
         messages=messages,
         memory=health,
-        is_premium=user.verified,
-        stripe_public_key=STRIPE_PUBLIC_KEY
+        is_pro=user.is_pro(),
+        razorpay_key=RAZORPAY_KEY_ID
     )
 
 # =====================================================
-# 🗑 CLEAR CHAT
+# 🔓 LOGOUT
 # =====================================================
 
-@app.route("/clear")
-def clear_chat():
-    if "chat_session_id" in session:
-        Message.query.filter_by(
-            session_id=session["chat_session_id"]
-        ).delete()
-        db.session.commit()
-
-    return redirect(url_for("dashboard"))
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("landing"))
 
 # =====================================================
-# 🏥 HEALTH CHECK
+# HEALTH CHECK
 # =====================================================
 
 @app.route("/health")
 def health_check():
     return {"status": "ok"}
-
-# =====================================================
-# RUN
-# =====================================================
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
